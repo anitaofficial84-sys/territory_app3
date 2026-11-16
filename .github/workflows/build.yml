@@ -1,0 +1,41 @@
+name: Build APK
+on: workflow_dispatch
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Unzip project
+        run: |
+          unzip -q "$(ls *.zip | head -1)" -d unz
+          P=$(dirname "$(find unz -name pubspec.yaml | head -1)")
+          mkdir app
+          cp -r "$P"/. app/
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - name: Prepare Android project
+        working-directory: app
+        run: |
+          cp android/app/src/main/AndroidManifest.xml /tmp/m.xml
+          flutter create . --platforms=android --project-name territory_app --org com.territory
+          cp /tmp/m.xml android/app/src/main/AndroidManifest.xml
+          rm -f test/widget_test.dart
+          flutter pub get
+      - name: Build APK
+        working-directory: app
+        run: flutter build apk --release 2>&1 | tee build.log
+      - uses: actions/upload-artifact@v4
+        with:
+          name: territory-apk
+          path: app/build/app/outputs/flutter-apk/app-release.apk
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: build-log
+          path: app/build.log
